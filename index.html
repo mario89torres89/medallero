@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neo-Archipelago Cloud | Proyecto Medallero</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+</head>
+<body>
+    <div class="matrix-bg"></div>
+    <div id="canvas-container"></div>
+    
+    <div id="ui-layer">
+        <header>
+            <div class="header-main">
+                <h1 class="holo-text">NEO-ARCHIPELAGO CLOUD</h1>
+                <div class="group-selector-container">
+                    <label>GRUPO ACTIVO:</label>
+                    <select id="group-select">
+                        <option value="GRUPO A">GRUPO A</option>
+                        <option value="GRUPO B">GRUPO B</option>
+                        <option value="GRUPO C">GRUPO C</option>
+                        <option value="GRUPO D">GRUPO D</option>
+                        <option value="GRUPO E">GRUPO E</option>
+                        <option value="GRUPO F">GRUPO F</option>
+                    </select>
+                </div>
+            </div>
+            <div class="cloud-status" id="cloud-status">☁️ CONECTADO A FIREBASE</div>
+        </header>
+
+        <aside id="leaderboard" class="visible">
+            <div class="side-header">
+                <h2>RANKING <span id="current-group-label">A</span></h2>
+                <button id="toggle-rank">◀</button>
+            </div>
+            <div id="rank-list" class="scroll-box"></div>
+        </aside>
+
+        <div id="controls">
+            <button class="btn-holo" id="btn-add-student">➕ NUEVO ALUMNO</button>
+            <button class="btn-holo" id="btn-rotate">🔄 ROTACIÓN</button>
+        </div>
+        
+        <!-- Modal de Alumno -->
+        <div id="student-modal" class="glass-panel hidden">
+            <div class="modal-content">
+                <div id="view-mode">
+                    <h2 id="modal-name" class="holo-text-small">NOMBRE</h2>
+                    <h3 id="modal-level">Nivel</h3>
+                    <p>Energía Total: <span id="modal-stars">0</span> ★</p>
+                    <button class="btn-edit" id="btn-edit-profile">⚙️ EDITAR PERFIL</button>
+                </div>
+                
+                <div id="edit-mode" class="hidden">
+                    <h2 class="holo-text-small">EDITOR</h2>
+                    <input type="text" id="edit-name-input" class="holo-input">
+                    <div class="edit-actions">
+                        <button class="btn-holo btn-save" id="btn-save-edit">GUARDAR</button>
+                        <button class="btn-holo btn-delete" id="btn-delete-student">ELIMINAR</button>
+                        <button class="btn-holo" id="btn-cancel-edit">CANCELAR</button>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <p>ASIGNAR ENERGÍA:</p>
+                    <div class="energy-buttons">
+                        <button class="btn-holo btn-inv" id="reward-inn">💡 INN</button>
+                        <button class="btn-holo btn-cre" id="reward-cre">🎨 CRE</button>
+                        <button class="btn-holo btn-col" id="reward-col">🤝 COL</button>
+                    </div>
+                </div>
+
+                <div class="medals-showcase">
+                    <div id="modal-medals" class="medals-grid"></div>
+                </div>
+                <button class="btn-holo btn-close" id="btn-close-modal">CERRAR [X]</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- El script principal ahora es un módulo -->
+    <script type="module" src="script.js"></script>
+</body>
+</html>
