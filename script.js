@@ -18,9 +18,13 @@ const db = getFirestore(firebaseApp);
 // --- ESTADO GLOBAL ---
 let appData = {
     currentGroupName: "GRUPO A",
-    groups: { "GRUPO A": [], "GRUPO B": [], "GRUPO C": [], "GRUPO D": [], "GRUPO E": [], "GRUPO F": [] }
+    groups: { 
+        "GRUPO A": [], "GRUPO B": [], "GRUPO C": [], 
+        "GRUPO D": [], "GRUPO E": [], "GRUPO F": [] 
+    }
 };
 let currentStudentId = null;
+let islandsMap = new Map(); // Rastrear mallas 3D para actualizaciones fluidas
 
 // --- MOTOR 3D ---
 const scene = new THREE.Scene();
@@ -31,6 +35,7 @@ const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 document.getElementById('canvas-container').appendChild(renderer.domElement);
+
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 let autoRotate = true;
@@ -65,9 +70,13 @@ function showNotify(msg) {
     setTimeout(() => { n.style.opacity = '0'; setTimeout(() => n.remove(), 500); }, 3000);
 }
 
-// --- SINCRONIZACIÓN ---
+// --- SINCRONIZACIÓN NUBE ---
 async function pushToCloud() {
-    try { await setDoc(doc(db, "settings", "mainData"), appData); } catch (e) { console.error(e); }
+    try {
+        await setDoc(doc(db, "settings", "mainData"), appData);
+    } catch (e) {
+        console.error("Error al guardar:", e);
+    }
 }
 
 function initSync() {
@@ -75,7 +84,6 @@ function initSync() {
         if (docSnap.exists()) {
             appData = docSnap.data();
             updateAll();
-            // Ocultar pantalla de carga al primer recibo de datos
             const loader = document.getElementById('loading-screen');
             if(loader) { loader.style.opacity = '0'; setTimeout(() => loader.remove(), 800); }
             document.getElementById('cloud-status').innerText = "☁️ ARCHIPIÉLAGO SINCRONIZADO";
@@ -89,45 +97,57 @@ function initSync() {
 // --- VISUALIZACIÓN ---
 function updateAll() {
     islandsGroup.clear();
+    islandsMap.clear();
     const students = appData.groups[appData.currentGroupName] || [];
     document.getElementById('current-group-label').innerText = appData.currentGroupName.split(' ')[1];
-    students.forEach((s, i) => spawnIsland(s, i, students.length));
+    
+    students.forEach((s, i) => {
+        const radius = 30; const angle = (Math.PI * 2 / Math.max(students.length, 1)) * i;
+        const r = i % 2 === 0 ? radius : radius + 15;
+        const level = LEVELS.find(l => s.starTypes.length <= l.max);
+        
+        const island = new THREE.Mesh(
+            new THREE.CylinderGeometry(3*level.size, 2, 2*level.size, 6), 
+            new THREE.MeshStandardMaterial({ color: level.color, roughness: 0.5, metalness: 0.8 })
+        );
+        island.position.set(Math.cos(angle)*r, level.size, Math.sin(angle)*r);
+        island.userData.id = s.id;
+        
+        // Etiqueta 3D
+        const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
+        canvas.width = 512; canvas.height = 128;
+        ctx.fillStyle = 'rgba(0, 255, 255, 0.1)'; ctx.fillRect(0,0,512,128);
+        ctx.strokeStyle = '#0ff'; ctx.lineWidth = 10; ctx.strokeRect(0,0,512,128);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 60px Orbitron'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(s.name, 256, 64);
+        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true }));
+        sprite.scale.set(5, 1.25, 1); sprite.position.set(0, -2.5, 0); 
+        island.add(sprite);
+
+        // Grupo de estrellas
+        const sGroup = new THREE.Group(); 
+        sGroup.position.set(0, 2.5 + level.size, 0); 
+        island.add(sGroup);
+        
+        islandsGroup.add(island);
+        islandsMap.set(s.id, { mesh: island, starsGroup: sGroup });
+        
+        // Dibujar estrellas existentes
+        s.starTypes.forEach((type, idx) => {
+            const config = ENERGY_TYPES[type];
+            const star = new THREE.Mesh(config.geo, new THREE.MeshStandardMaterial({ color: config.color, emissive: config.color, emissiveIntensity: 0.5 }));
+            const a = (Math.PI * 2 / 5) * (idx % 5);
+            star.position.set(Math.cos(a)*1.8, Math.floor(idx/5)*1.2, Math.sin(a)*1.8);
+            sGroup.add(star);
+        });
+    });
     updateLeaderboard();
 }
 
-function spawnIsland(student, index, total) {
-    const radius = 30; const angle = (Math.PI * 2 / Math.max(total, 1)) * index;
-    const r = index % 2 === 0 ? radius : radius + 15;
-    const level = LEVELS.find(l => student.starTypes.length <= l.max);
-    const island = new THREE.Mesh(new THREE.CylinderGeometry(3*level.size, 2, 2*level.size, 6), new THREE.MeshStandardMaterial({ color: level.color, roughness: 0.5, metalness: 0.8 }));
-    island.position.set(Math.cos(angle)*r, level.size, Math.sin(angle)*r);
-    island.userData.id = student.id;
-    
-    const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
-    canvas.width = 512; canvas.height = 128;
-    ctx.fillStyle = 'rgba(0, 255, 255, 0.1)'; ctx.fillRect(0,0,512,128);
-    ctx.strokeStyle = '#0ff'; ctx.lineWidth = 10; ctx.strokeRect(0,0,512,128);
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 60px Orbitron'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(student.name, 256, 64);
-    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true }));
-    sprite.scale.set(5, 1.25, 1); sprite.position.set(0, -2.5, 0); island.add(sprite);
-
-    const sGroup = new THREE.Group(); sGroup.position.set(0, 2.5 + level.size, 0); island.add(sGroup);
-    islandsGroup.add(island);
-    student.mesh = island; student.starsGroup = sGroup;
-    
-    // Render stars
-    student.starTypes.forEach((type, i) => {
-        const config = ENERGY_TYPES[type];
-        const star = new THREE.Mesh(config.geo, new THREE.MeshStandardMaterial({ color: config.color, emissive: config.color, emissiveIntensity: 0.5 }));
-        const a = (Math.PI * 2 / 5) * (i % 5);
-        star.position.set(Math.cos(a)*1.8, Math.floor(i/5)*1.2, Math.sin(a)*1.8);
-        sGroup.add(star);
-    });
-}
-
 function updateLeaderboard() {
-    const list = document.getElementById('rank-list'); list.innerHTML = '';
+    const list = document.getElementById('rank-list'); 
+    if(!list) return;
+    list.innerHTML = '';
     const students = appData.groups[appData.currentGroupName] || [];
     [...students].sort((a,b) => b.starTypes.length - a.starTypes.length).forEach((s, i) => {
         const card = document.createElement('div'); card.className = 'student-card';
@@ -139,21 +159,22 @@ function updateLeaderboard() {
 }
 
 function focusStudent(id) {
-    const s = appData.groups[appData.currentGroupName].find(x => x.id === id);
-    if(!s || !s.mesh) return;
-    gsap.to(camera.position, { x: s.mesh.position.x * 1.5, y: 15, z: s.mesh.position.z * 1.5, duration: 1.2 });
-    controls.target.copy(s.mesh.position); autoRotate = false;
+    const sRef = islandsMap.get(id);
+    if(!sRef) return;
+    gsap.to(camera.position, { x: sRef.mesh.position.x * 1.5, y: 15, z: sRef.mesh.position.z * 1.5, duration: 1.2 });
+    controls.target.copy(sRef.mesh.position); autoRotate = false;
     openModal(id);
 }
 
 function openModal(id) {
     const s = appData.groups[appData.currentGroupName].find(x => x.id === id);
+    if(!s) return;
     currentStudentId = id;
     document.getElementById('modal-name').innerText = s.name;
     document.getElementById('modal-stars').innerText = s.starTypes.length;
     const level = LEVELS.find(l => s.starTypes.length <= l.max);
     document.getElementById('modal-level').innerText = level.name;
-    document.getElementById('modal-level').style.color = `#${level.color.toString(16)}`;
+    document.getElementById('modal-level').style.color = `#${level.color.toString(16).padStart(6, '0')}`;
     
     const medals = document.getElementById('modal-medals'); medals.innerHTML = '';
     const counts = s.starTypes.reduce((acc, t) => { acc[t] = (acc[t] || 0) + 1; return acc; }, {});
@@ -170,17 +191,21 @@ function openModal(id) {
 // --- ACCIONES ---
 window.rewardStudent = (id, type) => {
     const s = appData.groups[appData.currentGroupName].find(x => x.id === id);
-    s.starTypes.push(type); 
-    showNotify(`Energía de ${ENERGY_TYPES[type].name} asignada a ${s.name}`);
-    pushToCloud();
+    if(s) {
+        s.starTypes.push(type); 
+        showNotify(`${ENERGY_TYPES[type].name} +1 para ${s.name}`);
+        pushToCloud();
+    }
 };
 
 window.saveStudentChanges = () => {
     const s = appData.groups[appData.currentGroupName].find(x => x.id === currentStudentId);
-    s.name = document.getElementById('edit-name-input').value;
-    window.setEditMode(false);
-    showNotify(`Perfil de ${s.name} actualizado`);
-    pushToCloud();
+    if(s) {
+        s.name = document.getElementById('edit-name-input').value;
+        window.setEditMode(false);
+        showNotify(`Perfil de ${s.name} actualizado`);
+        pushToCloud();
+    }
 };
 
 window.deleteStudent = () => {
@@ -188,23 +213,23 @@ window.deleteStudent = () => {
     if(confirm(`¿Eliminar a ${s.name}?`)) {
         appData.groups[appData.currentGroupName] = appData.groups[appData.currentGroupName].filter(x => x.id !== currentStudentId);
         window.closeModal();
-        showNotify(`Cadete eliminado del sistema`);
+        showNotify(`Cadete eliminado`);
         pushToCloud();
     }
 };
 
 window.openAddModal = () => {
-    const name = prompt("Nombre del nuevo alumno:");
+    const name = prompt("Nombre del alumno:");
     if(name) {
         const newS = { id: Date.now(), name: name, starTypes: [] };
         if(!appData.groups[appData.currentGroupName]) appData.groups[appData.currentGroupName] = [];
         appData.groups[appData.currentGroupName].push(newS); 
-        showNotify(`Nuevo cadete reclutado: ${name}`);
+        showNotify(`Nuevo cadete: ${name}`);
         pushToCloud();
     }
 };
 
-// --- EVENTOS ---
+// --- EVENTOS INTERFAZ ---
 window.toggleRanking = () => {
     const lb = document.getElementById('leaderboard'); lb.classList.toggle('hidden-rank');
     document.getElementById('toggle-rank').innerText = lb.classList.contains('hidden-rank') ? '▶' : '◀';
@@ -212,11 +237,17 @@ window.toggleRanking = () => {
 window.setEditMode = (e) => {
     document.getElementById('view-mode').classList.toggle('hidden', e);
     document.getElementById('edit-mode').classList.toggle('hidden', !e);
-    if(e) document.getElementById('edit-name-input').value = appData.groups[appData.currentGroupName].find(s=>s.id===currentStudentId).name;
+    if(e) {
+        const s = appData.groups[appData.currentGroupName].find(x => x.id === currentStudentId);
+        document.getElementById('edit-name-input').value = s ? s.name : "";
+    }
 };
 window.closeModal = () => document.getElementById('student-modal').classList.add('hidden');
 
-document.getElementById('group-select').onchange = (e) => { appData.currentGroupName = e.target.value; updateAll(); };
+document.getElementById('group-select').onchange = (e) => { 
+    appData.currentGroupName = e.target.value; 
+    updateAll(); 
+};
 document.getElementById('btn-add-student').onclick = window.openAddModal;
 document.getElementById('btn-rotate').onclick = () => autoRotate = !autoRotate;
 document.getElementById('btn-close-modal').onclick = window.closeModal;
@@ -229,6 +260,7 @@ document.getElementById('reward-inn').onclick = () => window.rewardStudent(curre
 document.getElementById('reward-cre').onclick = () => window.rewardStudent(currentStudentId, 'creativity');
 document.getElementById('reward-col').onclick = () => window.rewardStudent(currentStudentId, 'collaboration');
 
+// --- EVENTOS 3D ---
 window.addEventListener('click', (e) => {
     if(e.target.closest('#ui-layer')) return;
     const mouse = new THREE.Vector2((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
@@ -239,11 +271,20 @@ window.addEventListener('click', (e) => {
     }
 });
 
+window.addEventListener('resize', () => { 
+    camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); 
+});
+
 function animate() {
     requestAnimationFrame(animate); core.rotation.y += 0.01;
     if(autoRotate) islandsGroup.rotation.y -= 0.005;
     const time = Date.now()*0.002;
-    (appData.groups[appData.currentGroupName] || []).forEach(s => { if(s.starsGroup) { s.starsGroup.rotation.y += 0.01; s.mesh.position.y = 1 + Math.sin(time + s.id)*0.3; } });
+    islandsMap.forEach((ref, id) => {
+        if(ref.mesh) {
+            ref.mesh.position.y = 1 + Math.sin(time + id)*0.3;
+            if(ref.starsGroup) ref.starsGroup.rotation.y += 0.01;
+        }
+    });
     controls.update(); renderer.render(scene, camera);
 }
 
