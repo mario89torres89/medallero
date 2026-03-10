@@ -15,20 +15,18 @@ const firebaseConfig = {
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 
-// --- CREDENCIALES ADMIN ---
 const ADMIN_USER = "admin";
 const ADMIN_PASS = "mario2026";
 
-// --- ESTADO GLOBAL ---
 let appData = {
     currentGroupName: "2A",
     groups: { "2A": [], "2B": [], "2C": [], "2D": [], "3A": [], "3B": [] }
 };
 let currentStudentId = null;
 let islandsMap = new Map();
-let isReadOnly = true; // Inicia bloqueado
+let isReadOnly = true;
 
-// --- MOTOR 3D (Three.js) ---
+// --- MOTOR 3D ---
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x050510, 0.015);
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -61,7 +59,7 @@ const pLight = new THREE.PointLight(0x00ffff, 1, 150); pLight.position.set(0,70,
 const core = new THREE.Mesh(new THREE.CylinderGeometry(5,5,2,32), new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true }));
 scene.add(core);
 
-// --- UTILIDADES ---
+// --- FUNCIONES CORE ---
 function showNotify(msg) {
     if(isReadOnly) return;
     const container = document.getElementById('notification-container');
@@ -71,7 +69,6 @@ function showNotify(msg) {
     setTimeout(() => { n.style.opacity = '0'; setTimeout(() => n.remove(), 500); }, 3000);
 }
 
-// --- SINCRONIZACIÓN ---
 async function pushToCloud() {
     if(isReadOnly) return;
     try { await setDoc(doc(db, "settings", "mainData"), appData); } catch (e) { console.error(e); }
@@ -97,7 +94,6 @@ function updateCloudStatus() {
     status.style.color = isReadOnly ? "#888" : "#0f0";
 }
 
-// --- VISUALIZACIÓN ---
 function updateAll() {
     islandsGroup.clear(); islandsMap.clear();
     const students = appData.groups[appData.currentGroupName] || [];
@@ -141,7 +137,7 @@ function updateLeaderboard() {
     const students = appData.groups[appData.currentGroupName] || [];
     [...students].sort((a,b) => b.starTypes.length - a.starTypes.length).forEach((s, i) => {
         const card = document.createElement('div'); card.className = 'student-card';
-        card.onclick = () => focusStudent(s.id);
+        card.addEventListener('click', () => focusStudent(s.id));
         const energyPercent = Math.min((s.starTypes.length / 15) * 100, 100);
         card.innerHTML = `<div><span class="student-name">${s.name}</span><div class="energy-bar"><div class="energy-fill" style="width: ${energyPercent}%"></div></div></div><div class="stars-count">${s.starTypes.length} ★</div>`;
         list.appendChild(card);
@@ -181,7 +177,7 @@ function toggleAdmin(auth) {
     if(auth) {
         document.body.classList.remove('modo-ver');
         document.getElementById('btn-login-open').innerText = "🔓 SALIR SESIÓN";
-        showNotify("ACCESO CONCEDIDO - MODO EDICIÓN");
+        showNotify("ACCESO CONCEDIDO");
     } else {
         document.body.classList.add('modo-ver');
         document.getElementById('btn-login-open').innerText = "🔑 ACCESO DOCENTE";
@@ -189,81 +185,109 @@ function toggleAdmin(auth) {
     updateCloudStatus();
 }
 
-document.getElementById('btn-login-open').onclick = () => {
-    if(!isReadOnly) { toggleAdmin(false); return; }
-    document.getElementById('login-modal').classList.remove('hidden');
-};
+// --- REGISTRO DE EVENTOS (SIN ONCLICK EN HTML) ---
+document.addEventListener('DOMContentLoaded', () => {
+    // Botón para abrir el login
+    document.getElementById('btn-login-open').addEventListener('click', () => {
+        if(!isReadOnly) { toggleAdmin(false); return; }
+        document.getElementById('login-modal').classList.remove('hidden');
+    });
 
-document.getElementById('btn-login-submit').onclick = () => {
-    const u = document.getElementById('login-user').value;
-    const p = document.getElementById('login-pass').value;
-    if(u === ADMIN_USER && p === ADMIN_PASS) {
-        toggleAdmin(true);
+    // Botón para enviar credenciales
+    document.getElementById('btn-login-submit').addEventListener('click', () => {
+        const u = document.getElementById('login-user').value;
+        const p = document.getElementById('login-pass').value;
+        if(u === ADMIN_USER && p === ADMIN_PASS) {
+            toggleAdmin(true);
+            document.getElementById('login-modal').classList.add('hidden');
+            document.getElementById('login-user').value = "";
+            document.getElementById('login-pass').value = "";
+        } else {
+            alert("ACCESO DENEGADO");
+        }
+    });
+
+    document.getElementById('btn-login-close').addEventListener('click', () => {
         document.getElementById('login-modal').classList.add('hidden');
-        document.getElementById('login-user').value = "";
-        document.getElementById('login-pass').value = "";
-    } else {
-        alert("CREDENCIALES INVÁLIDAS");
-    }
-};
+    });
 
-document.getElementById('btn-login-close').onclick = () => document.getElementById('login-modal').classList.add('hidden');
+    document.getElementById('btn-add-student').addEventListener('click', () => {
+        if(isReadOnly) return;
+        const n = prompt("Nombre del alumno:");
+        if(n) {
+            if(!appData.groups[appData.currentGroupName]) appData.groups[appData.currentGroupName] = [];
+            appData.groups[appData.currentGroupName].push({ id: Date.now(), name: n, starTypes: [] }); pushToCloud();
+        }
+    });
 
-// --- ACCIONES DOCENTES ---
-window.rewardStudent = (id, type) => {
-    if(isReadOnly) return;
-    const s = appData.groups[appData.currentGroupName].find(x => x.id === id);
-    if(s) { s.starTypes.push(type); pushToCloud(); }
-};
+    document.getElementById('btn-rotate').addEventListener('click', () => autoRotate = !autoRotate);
+    document.getElementById('btn-close-modal').addEventListener('click', () => document.getElementById('student-modal').classList.add('hidden'));
+    
+    document.getElementById('btn-edit-profile').addEventListener('click', () => {
+        document.getElementById('view-mode').classList.add('hidden'); 
+        document.getElementById('edit-mode').classList.remove('hidden'); 
+        const s = appData.groups[appData.currentGroupName].find(x => x.id === currentStudentId);
+        document.getElementById('edit-name-input').value = s ? s.name : "";
+    });
 
-window.saveStudentChanges = () => {
-    if(isReadOnly) return;
-    const s = appData.groups[appData.currentGroupName].find(x => x.id === currentStudentId);
-    if(s) { s.name = document.getElementById('edit-name-input').value; window.setEditMode(false); pushToCloud(); }
-};
+    document.getElementById('btn-save-edit').addEventListener('click', () => {
+        const s = appData.groups[appData.currentGroupName].find(x => x.id === currentStudentId);
+        if(s) {
+            s.name = document.getElementById('edit-name-input').value; 
+            document.getElementById('edit-mode').classList.add('hidden');
+            document.getElementById('view-mode').classList.remove('hidden');
+            pushToCloud();
+        }
+    });
 
-window.deleteStudent = () => {
-    if(isReadOnly) return;
-    if(confirm(`¿ELIMINAR ALUMNO?`)) { appData.groups[appData.currentGroupName] = appData.groups[appData.currentGroupName].filter(x => x.id !== currentStudentId); window.closeModal(); pushToCloud(); }
-};
+    document.getElementById('btn-delete-student').addEventListener('click', () => {
+        if(confirm(`¿Eliminar permanentemente?`)) {
+            appData.groups[appData.currentGroupName] = appData.groups[appData.currentGroupName].filter(x => x.id !== currentStudentId);
+            document.getElementById('student-modal').classList.add('hidden');
+            pushToCloud();
+        }
+    });
 
-window.openAddModal = () => {
-    if(isReadOnly) return;
-    const n = prompt("NOMBRE DEL ALUMNO:");
-    if(n) {
-        if(!appData.groups[appData.currentGroupName]) appData.groups[appData.currentGroupName] = [];
-        appData.groups[appData.currentGroupName].push({ id: Date.now(), name: n, starTypes: [] }); pushToCloud();
-    }
-};
+    document.getElementById('btn-cancel-edit').addEventListener('click', () => {
+        document.getElementById('edit-mode').classList.add('hidden'); 
+        document.getElementById('view-mode').classList.remove('hidden');
+    });
 
-// --- EVENTOS INTERFAZ ---
-document.getElementById('btn-rotate').onclick = () => autoRotate = !autoRotate;
-document.getElementById('btn-close-modal').onclick = window.closeModal;
-document.getElementById('btn-edit-profile').onclick = () => window.setEditMode(true);
-document.getElementById('btn-save-edit').onclick = window.saveStudentChanges;
-document.getElementById('btn-delete-student').onclick = window.deleteStudent;
-document.getElementById('btn-cancel-edit').onclick = () => window.setEditMode(false);
-document.getElementById('toggle-rank').onclick = () => { const lb = document.getElementById('leaderboard'); lb.classList.toggle('hidden-rank'); document.getElementById('toggle-rank').innerText = lb.classList.contains('hidden-rank') ? '▶' : '◀'; };
+    document.getElementById('toggle-rank').addEventListener('click', () => {
+        const lb = document.getElementById('leaderboard'); 
+        lb.classList.toggle('hidden-rank');
+        document.getElementById('toggle-rank').innerText = lb.classList.contains('hidden-rank') ? '▶' : '◀';
+    });
 
-document.getElementById('reward-inn').onclick = () => window.rewardStudent(currentStudentId, 'innovation');
-document.getElementById('reward-cre').onclick = () => window.rewardStudent(currentStudentId, 'creativity');
-document.getElementById('reward-col').onclick = () => window.rewardStudent(currentStudentId, 'collaboration');
+    document.getElementById('reward-inn').addEventListener('click', () => {
+        const s = appData.groups[appData.currentGroupName].find(x => x.id === currentStudentId);
+        if(s && !isReadOnly) { s.starTypes.push('innovation'); pushToCloud(); }
+    });
 
-window.setEditMode = (e) => {
-    if(isReadOnly) return;
-    document.getElementById('view-mode').classList.toggle('hidden', e);
-    document.getElementById('edit-mode').classList.toggle('hidden', !e);
-    if(e) document.getElementById('edit-name-input').value = appData.groups[appData.currentGroupName].find(s=>s.id===currentStudentId).name;
-};
-window.closeModal = () => document.getElementById('student-modal').classList.add('hidden');
-document.getElementById('group-select').onchange = (e) => { appData.currentGroupName = e.target.value; updateAll(); };
+    document.getElementById('reward-cre').addEventListener('click', () => {
+        const s = appData.groups[appData.currentGroupName].find(x => x.id === currentStudentId);
+        if(s && !isReadOnly) { s.starTypes.push('creativity'); pushToCloud(); }
+    });
+
+    document.getElementById('reward-col').addEventListener('click', () => {
+        const s = appData.groups[appData.currentGroupName].find(x => x.id === currentStudentId);
+        if(s && !isReadOnly) { s.starTypes.push('collaboration'); pushToCloud(); }
+    });
+
+    document.getElementById('group-select').addEventListener('change', (e) => {
+        appData.currentGroupName = e.target.value; 
+        updateAll();
+    });
+});
 
 window.addEventListener('click', (e) => {
     if(e.target.closest('#ui-layer')) return;
     const mouse = new THREE.Vector2((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
     const raycaster = new THREE.Raycaster(); raycaster.setFromCamera(mouse, camera);
     const hits = raycaster.intersectObjects(scene.children, true);
-    for(let h of hits) { let o = h.object; while(o) { if(o.userData.id) { focusStudent(o.userData.id); return; } o = o.parent; } }
+    for(let h of hits) {
+        let o = h.object; while(o) { if(o.userData.id) { focusStudent(o.userData.id); return; } o = o.parent; }
+    }
 });
 
 window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
