@@ -1,4 +1,3 @@
-// --- CONFIGURACIÓN DE NUBE (FIREBASE 11+ FIRESTORE) ---
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
@@ -18,17 +17,16 @@ const db = getFirestore(firebaseApp);
 const ADMIN_USER = "admin";
 const ADMIN_PASS = "mario2026";
 
-let appData = {
-    currentGroupName: "2A",
-    groups: { "2A": [], "2B": [], "2C": [], "2D": [], "3A": [], "3B": [] }
-};
+// --- COLORES ---
+const COLORS = { blue: 0x00548B, green: 0x78BE20, orange: 0xEF7D00 };
+
+let appData = { currentGroupName: "2A", groups: { "2A": [], "2B": [], "2C": [], "2D": [], "3A": [], "3B": [] } };
 let currentStudentId = null;
 let islandsMap = new Map();
 let isReadOnly = true;
 
-// --- MOTOR 3D ---
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x050510, 0.015);
+scene.fog = new THREE.FogExp2(0x050a15, 0.015);
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(0, 45, 65);
 const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
@@ -40,33 +38,48 @@ controls.enableDamping = true;
 let autoRotate = true;
 
 const ENERGY_TYPES = {
-    innovation: { color: 0x00ffff, geo: new THREE.IcosahedronGeometry(0.5, 0), icon: '💡', name: 'Innovación' },
-    creativity: { color: 0xff00ff, geo: new THREE.OctahedronGeometry(0.6, 0), icon: '🎨', name: 'Creatividad' },
-    collaboration: { color: 0x00ff00, geo: new THREE.TetrahedronGeometry(0.6, 0), icon: '🤝', name: 'Colaboración' }
+    innovation: { color: COLORS.blue, geo: new THREE.IcosahedronGeometry(0.5, 0), icon: '💡', name: 'Innovación' },
+    collaboration: { color: COLORS.green, geo: new THREE.TetrahedronGeometry(0.6, 0), icon: '🤝', name: 'Colaboración' },
+    creativity: { color: COLORS.orange, geo: new THREE.OctahedronGeometry(0.6, 0), icon: '🎨', name: 'Creatividad' }
 };
 
 const LEVELS = [
-    { max: 4, name: "Explorador", color: 0x00ffff, size: 1 },
-    { max: 9, name: "Constructor", color: 0x00ff00, size: 1.2 },
-    { max: 14, name: "Innovador", color: 0xffffff, size: 1.5 },
-    { max: 999, name: "Maestro Tech", color: 0xff00ff, size: 2 }
+    { max: 4, name: "Explorador", color: COLORS.blue, size: 1 },
+    { max: 9, name: "Constructor", color: COLORS.green, size: 1.2 },
+    { max: 14, name: "Innovador", color: COLORS.orange, size: 1.5 },
+    { max: 999, name: "Maestro Tech", color: 0xffffff, size: 2 }
 ];
+
+// --- LOGO INNOVA 3D ---
+const coreLogo = new THREE.Group();
+function createInnovaShield() {
+    const segments = [
+        { color: COLORS.orange, pts: [[-2,4], [0,5], [0,2], [-1,1]] },
+        { color: COLORS.green, pts: [[-2,0], [-1,1], [0,2], [0,-3], [-2,-1]] },
+        { color: COLORS.blue, pts: [[0,5], [3,3], [1,-4], [0,-3], [0,2]] }
+    ];
+    segments.forEach(seg => {
+        const shape = new THREE.Shape(); shape.moveTo(seg.pts[0][0], seg.pts[0][1]);
+        seg.pts.slice(1).forEach(p => shape.lineTo(p[0], p[1]));
+        const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.5, bevelEnabled: false });
+        const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: seg.color, wireframe: true, transparent: true, opacity: 0.8 }));
+        mesh.rotation.x = -Math.PI / 2; mesh.position.y = 2; coreLogo.add(mesh);
+    });
+}
+createInnovaShield();
+scene.add(coreLogo);
 
 const islandsGroup = new THREE.Group();
 scene.add(islandsGroup);
-scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-const pLight = new THREE.PointLight(0x00ffff, 1, 150); pLight.position.set(0,70,0); scene.add(pLight);
-const core = new THREE.Mesh(new THREE.CylinderGeometry(5,5,2,32), new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true }));
-scene.add(core);
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+const pLight = new THREE.PointLight(COLORS.blue, 1, 150); pLight.position.set(0,70,0); scene.add(pLight);
 
 // --- FUNCIONES CORE ---
 function showNotify(msg) {
     if(isReadOnly) return;
     const container = document.getElementById('notification-container');
-    const n = document.createElement('div');
-    n.className = 'notification'; n.innerText = `📡 ${msg}`;
-    container.appendChild(n);
-    setTimeout(() => { n.style.opacity = '0'; setTimeout(() => n.remove(), 500); }, 3000);
+    const n = document.createElement('div'); n.className = 'notification'; n.innerText = `📡 ${msg}`;
+    container.appendChild(n); setTimeout(() => { n.style.opacity='0'; setTimeout(()=>n.remove(),500); }, 3000);
 }
 
 async function pushToCloud() {
@@ -77,50 +90,37 @@ async function pushToCloud() {
 function initSync() {
     onSnapshot(doc(db, "settings", "mainData"), (docSnap) => {
         if (docSnap.exists()) {
-            appData = docSnap.data();
-            updateAll();
+            appData = docSnap.data(); updateAll();
             const loader = document.getElementById('loading-screen');
             if(loader) { loader.style.opacity = '0'; setTimeout(() => loader.remove(), 800); }
-            updateCloudStatus();
-        } else if(!isReadOnly) {
-            pushToCloud();
-        }
+            const status = document.getElementById('cloud-status');
+            status.innerText = isReadOnly ? "☁️ MODO LECTURA" : "☁️ ADMIN: CONECTADO";
+            status.style.color = isReadOnly ? "#888" : "#78BE20";
+        } else if(!isReadOnly) { pushToCloud(); }
     });
-}
-
-function updateCloudStatus() {
-    const status = document.getElementById('cloud-status');
-    status.innerText = isReadOnly ? "☁️ MODO LECTURA" : "☁️ ADMIN: CONECTADO";
-    status.style.color = isReadOnly ? "#888" : "#0f0";
 }
 
 function updateAll() {
     islandsGroup.clear(); islandsMap.clear();
     const students = appData.groups[appData.currentGroupName] || [];
     document.getElementById('current-group-label').innerText = appData.currentGroupName;
-    
     students.forEach((s, i) => {
         const radius = i % 2 === 0 ? 30 : 45;
         const angle = (Math.PI * 2 / Math.max(students.length, 1)) * i;
         const level = LEVELS.find(l => s.starTypes.length <= l.max);
-        
         const island = new THREE.Mesh(new THREE.CylinderGeometry(3*level.size, 2, 2*level.size, 6), new THREE.MeshStandardMaterial({ color: level.color, roughness: 0.5, metalness: 0.8 }));
         island.position.set(Math.cos(angle)*radius, level.size, Math.sin(angle)*radius);
         island.userData.id = s.id;
-        
         const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
         canvas.width = 512; canvas.height = 128;
-        ctx.fillStyle = 'rgba(0, 255, 255, 0.1)'; ctx.fillRect(0,0,512,128);
-        ctx.strokeStyle = '#0ff'; ctx.lineWidth = 10; ctx.strokeRect(0,0,512,128);
+        ctx.fillStyle = 'rgba(0, 84, 139, 0.2)'; ctx.fillRect(0,0,512,128);
+        ctx.strokeStyle = '#00548B'; ctx.lineWidth = 10; ctx.strokeRect(0,0,512,128);
         ctx.fillStyle = '#fff'; ctx.font = 'bold 60px Orbitron'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(s.name, 256, 64);
         const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true }));
         sprite.scale.set(5, 1.25, 1); sprite.position.set(0, -2.5, 0); island.add(sprite);
-
         const sGroup = new THREE.Group(); sGroup.position.set(0, 2.5 + level.size, 0); island.add(sGroup);
-        islandsGroup.add(island);
-        islandsMap.set(s.id, { mesh: island, starsGroup: sGroup });
-        
+        islandsGroup.add(island); islandsMap.set(s.id, { mesh: island, starsGroup: sGroup });
         s.starTypes.forEach((type, idx) => {
             const config = ENERGY_TYPES[type];
             const star = new THREE.Mesh(config.geo, new THREE.MeshStandardMaterial({ color: config.color, emissive: config.color, emissiveIntensity: 0.5 }));
@@ -171,129 +171,58 @@ function openModal(id) {
     document.getElementById('student-modal').classList.remove('hidden');
 }
 
-// --- LÓGICA DE ACCESO ---
 function toggleAdmin(auth) {
     isReadOnly = !auth;
     if(auth) {
-        document.body.classList.remove('modo-ver');
-        document.getElementById('btn-login-open').innerText = "🔓 SALIR SESIÓN";
-        showNotify("ACCESO CONCEDIDO");
+        document.body.classList.remove('modo-ver'); document.getElementById('btn-login-open').innerText = "🔓 SALIR";
+        showNotify("MODO DOCENTE ACTIVO");
     } else {
-        document.body.classList.add('modo-ver');
-        document.getElementById('btn-login-open').innerText = "🔑 ACCESO DOCENTE";
+        document.body.classList.add('modo-ver'); document.getElementById('btn-login-open').innerText = "🔑 ACCESO DOCENTE";
     }
-    updateCloudStatus();
+    updateAll();
 }
 
-// --- REGISTRO DE EVENTOS (SIN ONCLICK EN HTML) ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Botón para abrir el login
-    document.getElementById('btn-login-open').addEventListener('click', () => {
-        if(!isReadOnly) { toggleAdmin(false); return; }
-        document.getElementById('login-modal').classList.remove('hidden');
-    });
-
-    // Botón para enviar credenciales
+    document.getElementById('btn-login-open').addEventListener('click', () => { if(!isReadOnly) { toggleAdmin(false); return; } document.getElementById('login-modal').classList.remove('hidden'); });
     document.getElementById('btn-login-submit').addEventListener('click', () => {
-        const u = document.getElementById('login-user').value;
-        const p = document.getElementById('login-pass').value;
-        if(u === ADMIN_USER && p === ADMIN_PASS) {
-            toggleAdmin(true);
-            document.getElementById('login-modal').classList.add('hidden');
-            document.getElementById('login-user').value = "";
-            document.getElementById('login-pass').value = "";
-        } else {
-            alert("ACCESO DENEGADO");
-        }
+        if(document.getElementById('login-user').value === ADMIN_USER && document.getElementById('login-pass').value === ADMIN_PASS) {
+            toggleAdmin(true); document.getElementById('login-modal').classList.add('hidden');
+        } else { alert("ERROR"); }
     });
-
-    document.getElementById('btn-login-close').addEventListener('click', () => {
-        document.getElementById('login-modal').classList.add('hidden');
-    });
-
+    document.getElementById('btn-login-close').addEventListener('click', () => document.getElementById('login-modal').classList.add('hidden'));
     document.getElementById('btn-add-student').addEventListener('click', () => {
         if(isReadOnly) return;
-        const n = prompt("Nombre del alumno:");
-        if(n) {
-            if(!appData.groups[appData.currentGroupName]) appData.groups[appData.currentGroupName] = [];
-            appData.groups[appData.currentGroupName].push({ id: Date.now(), name: n, starTypes: [] }); pushToCloud();
-        }
+        const n = prompt("Nombre:");
+        if(n) { appData.groups[appData.currentGroupName].push({ id: Date.now(), name: n, starTypes: [] }); pushToCloud(); }
     });
-
     document.getElementById('btn-rotate').addEventListener('click', () => autoRotate = !autoRotate);
     document.getElementById('btn-close-modal').addEventListener('click', () => document.getElementById('student-modal').classList.add('hidden'));
-    
     document.getElementById('btn-edit-profile').addEventListener('click', () => {
-        document.getElementById('view-mode').classList.add('hidden'); 
-        document.getElementById('edit-mode').classList.remove('hidden'); 
-        const s = appData.groups[appData.currentGroupName].find(x => x.id === currentStudentId);
-        document.getElementById('edit-name-input').value = s ? s.name : "";
+        document.getElementById('view-mode').classList.add('hidden'); document.getElementById('edit-mode').classList.remove('hidden'); 
+        document.getElementById('edit-name-input').value = appData.groups[appData.currentGroupName].find(s=>s.id===currentStudentId).name;
     });
-
     document.getElementById('btn-save-edit').addEventListener('click', () => {
         const s = appData.groups[appData.currentGroupName].find(x => x.id === currentStudentId);
-        if(s) {
-            s.name = document.getElementById('edit-name-input').value; 
-            document.getElementById('edit-mode').classList.add('hidden');
-            document.getElementById('view-mode').classList.remove('hidden');
-            pushToCloud();
-        }
+        if(s) { s.name = document.getElementById('edit-name-input').value; document.getElementById('edit-mode').classList.add('hidden'); document.getElementById('view-mode').classList.remove('hidden'); pushToCloud(); }
     });
-
     document.getElementById('btn-delete-student').addEventListener('click', () => {
-        if(confirm(`¿Eliminar permanentemente?`)) {
-            appData.groups[appData.currentGroupName] = appData.groups[appData.currentGroupName].filter(x => x.id !== currentStudentId);
-            document.getElementById('student-modal').classList.add('hidden');
-            pushToCloud();
-        }
+        if(confirm(`¿ELIMINAR?`)) { appData.groups[appData.currentGroupName] = appData.groups[appData.currentGroupName].filter(x => x.id !== currentStudentId); document.getElementById('student-modal').classList.add('hidden'); pushToCloud(); }
     });
-
-    document.getElementById('btn-cancel-edit').addEventListener('click', () => {
-        document.getElementById('edit-mode').classList.add('hidden'); 
-        document.getElementById('view-mode').classList.remove('hidden');
-    });
-
+    document.getElementById('btn-cancel-edit').addEventListener('click', () => { document.getElementById('edit-mode').classList.add('hidden'); document.getElementById('view-mode').classList.remove('hidden'); });
     document.getElementById('toggle-rank').addEventListener('click', () => {
-        const lb = document.getElementById('leaderboard'); 
-        lb.classList.toggle('hidden-rank');
-        document.getElementById('toggle-rank').innerText = lb.classList.contains('hidden-rank') ? '▶' : '◀';
+        const lb = document.getElementById('leaderboard'); lb.classList.toggle('hidden-rank'); document.getElementById('toggle-rank').innerText = lb.classList.contains('hidden-rank') ? '▶' : '◀';
     });
-
-    document.getElementById('reward-inn').addEventListener('click', () => {
-        const s = appData.groups[appData.currentGroupName].find(x => x.id === currentStudentId);
-        if(s && !isReadOnly) { s.starTypes.push('innovation'); pushToCloud(); }
-    });
-
-    document.getElementById('reward-cre').addEventListener('click', () => {
-        const s = appData.groups[appData.currentGroupName].find(x => x.id === currentStudentId);
-        if(s && !isReadOnly) { s.starTypes.push('creativity'); pushToCloud(); }
-    });
-
-    document.getElementById('reward-col').addEventListener('click', () => {
-        const s = appData.groups[appData.currentGroupName].find(x => x.id === currentStudentId);
-        if(s && !isReadOnly) { s.starTypes.push('collaboration'); pushToCloud(); }
-    });
-
-    document.getElementById('group-select').addEventListener('change', (e) => {
-        appData.currentGroupName = e.target.value; 
-        updateAll();
-    });
-});
-
-window.addEventListener('click', (e) => {
-    if(e.target.closest('#ui-layer')) return;
-    const mouse = new THREE.Vector2((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
-    const raycaster = new THREE.Raycaster(); raycaster.setFromCamera(mouse, camera);
-    const hits = raycaster.intersectObjects(scene.children, true);
-    for(let h of hits) {
-        let o = h.object; while(o) { if(o.userData.id) { focusStudent(o.userData.id); return; } o = o.parent; }
-    }
+    document.getElementById('reward-inn').onclick = () => { if(!isReadOnly) { appData.groups[appData.currentGroupName].find(s=>s.id===currentStudentId).starTypes.push('innovation'); pushToCloud(); } };
+    document.getElementById('reward-cre').onclick = () => { if(!isReadOnly) { appData.groups[appData.currentGroupName].find(s=>s.id===currentStudentId).starTypes.push('creativity'); pushToCloud(); } };
+    document.getElementById('reward-col').onclick = () => { if(!isReadOnly) { appData.groups[appData.currentGroupName].find(s=>s.id===currentStudentId).starTypes.push('collaboration'); pushToCloud(); } };
+    document.getElementById('group-select').addEventListener('change', (e) => { appData.currentGroupName = e.target.value; updateAll(); });
 });
 
 window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
 
 function animate() {
-    requestAnimationFrame(animate); core.rotation.y += 0.01;
+    requestAnimationFrame(animate); 
+    coreLogo.rotation.y += 0.01;
     if(autoRotate) islandsGroup.rotation.y -= 0.005;
     const time = Date.now()*0.002;
     islandsMap.forEach((ref, id) => { if(ref.mesh) { ref.mesh.position.y = 1 + Math.sin(time + id)*0.3; if(ref.starsGroup) ref.starsGroup.rotation.y += 0.01; } });

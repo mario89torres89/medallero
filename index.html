@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neo-Archipelago Pro | 2A-3B</title>
+    <title>Innova Schools | Neo-Archipelago</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -14,8 +14,8 @@
     <div id="loading-screen">
         <div class="loader-content">
             <div class="loader-spinner"></div>
-            <h2 class="holo-text-small">SISTEMA NEO-ARCHIPELAGO</h2>
-            <p id="loading-text">Iniciando conexión segura...</p>
+            <h2 class="holo-text-small" style="color: #00548B;">INNOVA SCHOOLS SYSTEM</h2>
+            <p>Iniciando Archipiélago Tecnológico...</p>
         </div>
     </div>
 
@@ -26,9 +26,9 @@
     <div id="ui-layer">
         <header>
             <div class="header-main">
-                <h1 class="holo-text">NEO-ARCHIPELAGO CLOUD</h1>
+                <h1 class="holo-text">INNOVA <span style="color: #EF7D00;">ARCHIPELAGO</span></h1>
                 <div class="group-selector-container">
-                    <label>GRUPO ACTIVO:</label>
+                    <label>GRUPO:</label>
                     <select id="group-select">
                         <option value="2A">GRUPO 2A</option>
                         <option value="2B">GRUPO 2B</option>
@@ -44,7 +44,7 @@
 
         <aside id="leaderboard">
             <div class="side-header">
-                <h2>RANKING <span id="current-group-label">2A</span></h2>
+                <h2>RANKING <span id="current-group-label" style="color: #EF7D00;">2A</span></h2>
                 <button id="toggle-rank">◀</button>
             </div>
             <div id="rank-list" class="scroll-box"></div>
@@ -58,11 +58,11 @@
         
         <div id="login-modal" class="glass-panel hidden">
             <div class="modal-content">
-                <h2 class="holo-text-small">TERMINAL DE ACCESO</h2>
+                <h2 class="holo-text-small" style="color: #EF7D00;">ACCESO SEGURO</h2>
                 <input type="text" id="login-user" placeholder="USUARIO" class="holo-input">
                 <input type="password" id="login-pass" placeholder="CONTRASEÑA" class="holo-input">
                 <div class="edit-actions">
-                    <button class="btn-holo btn-save" id="btn-login-submit">ENTRAR</button>
+                    <button class="btn-holo btn-save" id="btn-login-submit">DESBLOQUEAR</button>
                     <button class="btn-holo" id="btn-login-close">CANCELAR</button>
                 </div>
             </div>
@@ -73,26 +73,24 @@
                 <div id="view-mode">
                     <h2 id="modal-name" class="holo-text-small">NOMBRE</h2>
                     <h3 id="modal-level">Nivel</h3>
-                    <p>Energía Total: <span id="modal-stars">0</span> ★</p>
-                    <button class="btn-edit solo-admin" id="btn-edit-profile">⚙️ EDITAR PERFIL</button>
+                    <p>Energía: <span id="modal-stars">0</span> ★</p>
+                    <button class="btn-edit solo-admin" id="btn-edit-profile">⚙️ GESTIONAR</button>
                 </div>
                 
                 <div id="edit-mode" class="hidden">
-                    <h2 class="holo-text-small">EDITOR</h2>
                     <input type="text" id="edit-name-input" class="holo-input">
                     <div class="edit-actions">
                         <button class="btn-holo btn-save" id="btn-save-edit">GUARDAR</button>
                         <button class="btn-holo btn-delete" id="btn-delete-student">ELIMINAR</button>
-                        <button class="btn-holo" id="btn-cancel-edit">CANCELAR</button>
+                        <button class="btn-holo" id="btn-cancel-edit">X</button>
                     </div>
                 </div>
 
                 <div class="modal-actions solo-admin">
-                    <p style="margin-top:15px; font-size:0.8rem; color:#aaa;">ASIGNAR NÚCLEO:</p>
                     <div class="energy-buttons">
                         <button class="btn-holo btn-inv" id="reward-inn">💡 INN</button>
-                        <button class="btn-holo btn-cre" id="reward-cre">🎨 CRE</button>
                         <button class="btn-holo btn-col" id="reward-col">🤝 COL</button>
+                        <button class="btn-holo btn-cre" id="reward-cre">🎨 CRE</button>
                     </div>
                 </div>
 
