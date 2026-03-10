@@ -15,6 +15,10 @@ const firebaseConfig = {
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 
+// --- CREDENCIALES ADMIN ---
+const ADMIN_USER = "admin";
+const ADMIN_PASS = "mario2026";
+
 // --- ESTADO GLOBAL ---
 let appData = {
     currentGroupName: "2A",
@@ -22,19 +26,9 @@ let appData = {
 };
 let currentStudentId = null;
 let islandsMap = new Map();
-let isReadOnly = false; // Flag para modo espectador
+let isReadOnly = true; // Inicia bloqueado
 
-// --- DETECTAR MODO ESPECTADOR ---
-function checkViewerMode() {
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('modo') === 'ver') {
-        isReadOnly = true;
-        document.body.classList.add('modo-ver');
-        document.getElementById('loading-text').innerText = "Iniciando Modo Espectador...";
-    }
-}
-
-// --- MOTOR 3D ---
+// --- MOTOR 3D (Three.js) ---
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x050510, 0.015);
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -69,18 +63,17 @@ scene.add(core);
 
 // --- UTILIDADES ---
 function showNotify(msg) {
-    if(isReadOnly) return; // No molestar a los alumnos con notificaciones de guardado
+    if(isReadOnly) return;
     const container = document.getElementById('notification-container');
     const n = document.createElement('div');
-    n.className = 'notification';
-    n.innerText = `📡 ${msg}`;
+    n.className = 'notification'; n.innerText = `📡 ${msg}`;
     container.appendChild(n);
     setTimeout(() => { n.style.opacity = '0'; setTimeout(() => n.remove(), 500); }, 3000);
 }
 
 // --- SINCRONIZACIÓN ---
 async function pushToCloud() {
-    if(isReadOnly) return; // BLOQUEO DE ESCRITURA
+    if(isReadOnly) return;
     try { await setDoc(doc(db, "settings", "mainData"), appData); } catch (e) { console.error(e); }
 }
 
@@ -91,22 +84,30 @@ function initSync() {
             updateAll();
             const loader = document.getElementById('loading-screen');
             if(loader) { loader.style.opacity = '0'; setTimeout(() => loader.remove(), 800); }
-            document.getElementById('cloud-status').innerText = isReadOnly ? "☁️ MODO LECTURA" : "☁️ ARCHIPIÉLAGO SINCRONIZADO";
-            document.getElementById('cloud-status').style.color = isReadOnly ? "#aaa" : "#0f0";
+            updateCloudStatus();
         } else if(!isReadOnly) {
             pushToCloud();
         }
     });
 }
 
+function updateCloudStatus() {
+    const status = document.getElementById('cloud-status');
+    status.innerText = isReadOnly ? "☁️ MODO LECTURA" : "☁️ ADMIN: CONECTADO";
+    status.style.color = isReadOnly ? "#888" : "#0f0";
+}
+
+// --- VISUALIZACIÓN ---
 function updateAll() {
     islandsGroup.clear(); islandsMap.clear();
     const students = appData.groups[appData.currentGroupName] || [];
     document.getElementById('current-group-label').innerText = appData.currentGroupName;
+    
     students.forEach((s, i) => {
         const radius = i % 2 === 0 ? 30 : 45;
         const angle = (Math.PI * 2 / Math.max(students.length, 1)) * i;
         const level = LEVELS.find(l => s.starTypes.length <= l.max);
+        
         const island = new THREE.Mesh(new THREE.CylinderGeometry(3*level.size, 2, 2*level.size, 6), new THREE.MeshStandardMaterial({ color: level.color, roughness: 0.5, metalness: 0.8 }));
         island.position.set(Math.cos(angle)*radius, level.size, Math.sin(angle)*radius);
         island.userData.id = s.id;
@@ -119,9 +120,11 @@ function updateAll() {
         ctx.fillText(s.name, 256, 64);
         const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true }));
         sprite.scale.set(5, 1.25, 1); sprite.position.set(0, -2.5, 0); island.add(sprite);
+
         const sGroup = new THREE.Group(); sGroup.position.set(0, 2.5 + level.size, 0); island.add(sGroup);
         islandsGroup.add(island);
         islandsMap.set(s.id, { mesh: island, starsGroup: sGroup });
+        
         s.starTypes.forEach((type, idx) => {
             const config = ENERGY_TYPES[type];
             const star = new THREE.Mesh(config.geo, new THREE.MeshStandardMaterial({ color: config.color, emissive: config.color, emissiveIntensity: 0.5 }));
@@ -172,11 +175,45 @@ function openModal(id) {
     document.getElementById('student-modal').classList.remove('hidden');
 }
 
-// --- ACCIONES ---
+// --- LÓGICA DE ACCESO ---
+function toggleAdmin(auth) {
+    isReadOnly = !auth;
+    if(auth) {
+        document.body.classList.remove('modo-ver');
+        document.getElementById('btn-login-open').innerText = "🔓 SALIR SESIÓN";
+        showNotify("ACCESO CONCEDIDO - MODO EDICIÓN");
+    } else {
+        document.body.classList.add('modo-ver');
+        document.getElementById('btn-login-open').innerText = "🔑 ACCESO DOCENTE";
+    }
+    updateCloudStatus();
+}
+
+document.getElementById('btn-login-open').onclick = () => {
+    if(!isReadOnly) { toggleAdmin(false); return; }
+    document.getElementById('login-modal').classList.remove('hidden');
+};
+
+document.getElementById('btn-login-submit').onclick = () => {
+    const u = document.getElementById('login-user').value;
+    const p = document.getElementById('login-pass').value;
+    if(u === ADMIN_USER && p === ADMIN_PASS) {
+        toggleAdmin(true);
+        document.getElementById('login-modal').classList.add('hidden');
+        document.getElementById('login-user').value = "";
+        document.getElementById('login-pass').value = "";
+    } else {
+        alert("CREDENCIALES INVÁLIDAS");
+    }
+};
+
+document.getElementById('btn-login-close').onclick = () => document.getElementById('login-modal').classList.add('hidden');
+
+// --- ACCIONES DOCENTES ---
 window.rewardStudent = (id, type) => {
     if(isReadOnly) return;
     const s = appData.groups[appData.currentGroupName].find(x => x.id === id);
-    if(s) { s.starTypes.push(type); showNotify(`${ENERGY_TYPES[type].name} +1`); pushToCloud(); }
+    if(s) { s.starTypes.push(type); pushToCloud(); }
 };
 
 window.saveStudentChanges = () => {
@@ -187,49 +224,39 @@ window.saveStudentChanges = () => {
 
 window.deleteStudent = () => {
     if(isReadOnly) return;
-    if(confirm(`¿Eliminar?`)) { appData.groups[appData.currentGroupName] = appData.groups[appData.currentGroupName].filter(x => x.id !== currentStudentId); window.closeModal(); pushToCloud(); }
+    if(confirm(`¿ELIMINAR ALUMNO?`)) { appData.groups[appData.currentGroupName] = appData.groups[appData.currentGroupName].filter(x => x.id !== currentStudentId); window.closeModal(); pushToCloud(); }
 };
 
 window.openAddModal = () => {
     if(isReadOnly) return;
-    const name = prompt("Nombre:");
-    if(name) {
-        const newS = { id: Date.now(), name: name, starTypes: [] };
+    const n = prompt("NOMBRE DEL ALUMNO:");
+    if(n) {
         if(!appData.groups[appData.currentGroupName]) appData.groups[appData.currentGroupName] = [];
-        appData.groups[appData.currentGroupName].push(newS); pushToCloud();
+        appData.groups[appData.currentGroupName].push({ id: Date.now(), name: n, starTypes: [] }); pushToCloud();
     }
 };
 
-window.toggleRanking = () => {
-    const lb = document.getElementById('leaderboard'); lb.classList.toggle('hidden-rank');
-    document.getElementById('toggle-rank').innerText = lb.classList.contains('hidden-rank') ? '▶' : '◀';
-};
-
-window.setEditMode = (e) => {
-    if(isReadOnly) return;
-    document.getElementById('view-mode').classList.toggle('hidden', e);
-    document.getElementById('edit-mode').classList.toggle('hidden', !e);
-    if(e) {
-        const s = appData.groups[appData.currentGroupName].find(x => x.id === currentStudentId);
-        document.getElementById('edit-name-input').value = s ? s.name : "";
-    }
-};
-
-window.closeModal = () => document.getElementById('student-modal').classList.add('hidden');
-
-// --- EVENTOS UI ---
-document.getElementById('group-select').onchange = (e) => { appData.currentGroupName = e.target.value; updateAll(); if(!isReadOnly) pushToCloud(); };
-document.getElementById('btn-add-student').onclick = window.openAddModal;
+// --- EVENTOS INTERFAZ ---
 document.getElementById('btn-rotate').onclick = () => autoRotate = !autoRotate;
 document.getElementById('btn-close-modal').onclick = window.closeModal;
 document.getElementById('btn-edit-profile').onclick = () => window.setEditMode(true);
 document.getElementById('btn-save-edit').onclick = window.saveStudentChanges;
 document.getElementById('btn-delete-student').onclick = window.deleteStudent;
 document.getElementById('btn-cancel-edit').onclick = () => window.setEditMode(false);
-document.getElementById('toggle-rank').onclick = window.toggleRanking;
+document.getElementById('toggle-rank').onclick = () => { const lb = document.getElementById('leaderboard'); lb.classList.toggle('hidden-rank'); document.getElementById('toggle-rank').innerText = lb.classList.contains('hidden-rank') ? '▶' : '◀'; };
+
 document.getElementById('reward-inn').onclick = () => window.rewardStudent(currentStudentId, 'innovation');
 document.getElementById('reward-cre').onclick = () => window.rewardStudent(currentStudentId, 'creativity');
 document.getElementById('reward-col').onclick = () => window.rewardStudent(currentStudentId, 'collaboration');
+
+window.setEditMode = (e) => {
+    if(isReadOnly) return;
+    document.getElementById('view-mode').classList.toggle('hidden', e);
+    document.getElementById('edit-mode').classList.toggle('hidden', !e);
+    if(e) document.getElementById('edit-name-input').value = appData.groups[appData.currentGroupName].find(s=>s.id===currentStudentId).name;
+};
+window.closeModal = () => document.getElementById('student-modal').classList.add('hidden');
+document.getElementById('group-select').onchange = (e) => { appData.currentGroupName = e.target.value; updateAll(); };
 
 window.addEventListener('click', (e) => {
     if(e.target.closest('#ui-layer')) return;
@@ -245,13 +272,8 @@ function animate() {
     requestAnimationFrame(animate); core.rotation.y += 0.01;
     if(autoRotate) islandsGroup.rotation.y -= 0.005;
     const time = Date.now()*0.002;
-    islandsMap.forEach((ref, id) => {
-        if(ref.mesh) {
-            ref.mesh.position.y = 1 + Math.sin(time + id)*0.3;
-            if(ref.starsGroup) ref.starsGroup.rotation.y += 0.01;
-        }
-    });
+    islandsMap.forEach((ref, id) => { if(ref.mesh) { ref.mesh.position.y = 1 + Math.sin(time + id)*0.3; if(ref.starsGroup) ref.starsGroup.rotation.y += 0.01; } });
     controls.update(); renderer.render(scene, camera);
 }
 
-checkViewerMode(); initSync(); animate();
+initSync(); animate();

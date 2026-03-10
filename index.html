@@ -3,20 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neo-Archipelago Cloud | 2A-3B</title>
+    <title>Neo-Archipelago Pro | Control Docente</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
 </head>
-<body>
-    <!-- Pantalla de Carga -->
+<body class="modo-ver">
+    <!-- Cargador -->
     <div id="loading-screen">
         <div class="loader-content">
             <div class="loader-spinner"></div>
             <h2 class="holo-text-small">SISTEMA NEO-ARCHIPELAGO</h2>
-            <p id="loading-text">Iniciando conexión con Firestore...</p>
+            <p>Sincronizando con Red Neuronal...</p>
         </div>
     </div>
 
@@ -40,10 +40,10 @@
                     </select>
                 </div>
             </div>
-            <div class="cloud-status" id="cloud-status">☁️ CONECTANDO...</div>
+            <div class="cloud-status" id="cloud-status">☁️ MODO LECTURA</div>
         </header>
 
-        <aside id="leaderboard" class="visible">
+        <aside id="leaderboard">
             <div class="side-header">
                 <h2>RANKING <span id="current-group-label">2A</span></h2>
                 <button id="toggle-rank">◀</button>
@@ -52,10 +52,26 @@
         </aside>
 
         <div id="controls">
+            <button class="btn-holo" id="btn-login-open">🔑 ACCESO DOCENTE</button>
             <button class="btn-holo solo-admin" id="btn-add-student">➕ NUEVO ALUMNO</button>
             <button class="btn-holo" id="btn-rotate">🔄 ROTACIÓN</button>
         </div>
         
+        <!-- Modal de Login -->
+        <div id="login-modal" class="glass-panel hidden">
+            <div class="modal-content">
+                <h2 class="holo-text-small">TERMINAL DE ACCESO</h2>
+                <p style="font-size: 0.7rem; color: #888; margin-bottom: 10px;">Ingrese credenciales de administrador</p>
+                <input type="text" id="login-user" placeholder="USUARIO" class="holo-input">
+                <input type="password" id="login-pass" placeholder="CONTRASEÑA" class="holo-input">
+                <div class="edit-actions">
+                    <button class="btn-holo btn-save" id="btn-login-submit">DESBLOQUEAR</button>
+                    <button class="btn-holo" id="btn-login-close">CANCELAR</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal de Alumno -->
         <div id="student-modal" class="glass-panel hidden">
             <div class="modal-content">
                 <div id="view-mode">
@@ -76,7 +92,7 @@
                 </div>
 
                 <div class="modal-actions solo-admin">
-                    <p>ASIGNAR ENERGÍA:</p>
+                    <p style="margin-top: 15px; font-size: 0.8rem; color: #aaa;">ASIGNAR NÚCLEO DE ENERGÍA:</p>
                     <div class="energy-buttons">
                         <button class="btn-holo btn-inv" id="reward-inn">💡 INN</button>
                         <button class="btn-holo btn-cre" id="reward-cre">🎨 CRE</button>
