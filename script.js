@@ -18,13 +18,21 @@ const db = getFirestore(firebaseApp);
 // --- ESTADO GLOBAL ---
 let appData = {
     currentGroupName: "2A",
-    groups: { 
-        "2A": [], "2B": [], "2C": [], 
-        "2D": [], "3A": [], "3B": [] 
-    }
+    groups: { "2A": [], "2B": [], "2C": [], "2D": [], "3A": [], "3B": [] }
 };
 let currentStudentId = null;
 let islandsMap = new Map();
+let isReadOnly = false; // Flag para modo espectador
+
+// --- DETECTAR MODO ESPECTADOR ---
+function checkViewerMode() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('modo') === 'ver') {
+        isReadOnly = true;
+        document.body.classList.add('modo-ver');
+        document.getElementById('loading-text').innerText = "Iniciando Modo Espectador...";
+    }
+}
 
 // --- MOTOR 3D ---
 const scene = new THREE.Scene();
@@ -35,7 +43,6 @@ const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 document.getElementById('canvas-container').appendChild(renderer.domElement);
-
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 let autoRotate = true;
@@ -62,8 +69,8 @@ scene.add(core);
 
 // --- UTILIDADES ---
 function showNotify(msg) {
+    if(isReadOnly) return; // No molestar a los alumnos con notificaciones de guardado
     const container = document.getElementById('notification-container');
-    if(!container) return;
     const n = document.createElement('div');
     n.className = 'notification';
     n.innerText = `📡 ${msg}`;
@@ -73,6 +80,7 @@ function showNotify(msg) {
 
 // --- SINCRONIZACIÓN ---
 async function pushToCloud() {
+    if(isReadOnly) return; // BLOQUEO DE ESCRITURA
     try { await setDoc(doc(db, "settings", "mainData"), appData); } catch (e) { console.error(e); }
 }
 
@@ -83,26 +91,22 @@ function initSync() {
             updateAll();
             const loader = document.getElementById('loading-screen');
             if(loader) { loader.style.opacity = '0'; setTimeout(() => loader.remove(), 800); }
-            document.getElementById('cloud-status').innerText = "☁️ ARCHIPIÉLAGO SINCRONIZADO";
-            document.getElementById('cloud-status').style.color = "#0f0";
-        } else {
+            document.getElementById('cloud-status').innerText = isReadOnly ? "☁️ MODO LECTURA" : "☁️ ARCHIPIÉLAGO SINCRONIZADO";
+            document.getElementById('cloud-status').style.color = isReadOnly ? "#aaa" : "#0f0";
+        } else if(!isReadOnly) {
             pushToCloud();
         }
     });
 }
 
-// --- VISUALIZACIÓN ---
 function updateAll() {
-    islandsGroup.clear();
-    islandsMap.clear();
+    islandsGroup.clear(); islandsMap.clear();
     const students = appData.groups[appData.currentGroupName] || [];
     document.getElementById('current-group-label').innerText = appData.currentGroupName;
-    
     students.forEach((s, i) => {
         const radius = i % 2 === 0 ? 30 : 45;
         const angle = (Math.PI * 2 / Math.max(students.length, 1)) * i;
         const level = LEVELS.find(l => s.starTypes.length <= l.max);
-        
         const island = new THREE.Mesh(new THREE.CylinderGeometry(3*level.size, 2, 2*level.size, 6), new THREE.MeshStandardMaterial({ color: level.color, roughness: 0.5, metalness: 0.8 }));
         island.position.set(Math.cos(angle)*radius, level.size, Math.sin(angle)*radius);
         island.userData.id = s.id;
@@ -115,11 +119,9 @@ function updateAll() {
         ctx.fillText(s.name, 256, 64);
         const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true }));
         sprite.scale.set(5, 1.25, 1); sprite.position.set(0, -2.5, 0); island.add(sprite);
-
         const sGroup = new THREE.Group(); sGroup.position.set(0, 2.5 + level.size, 0); island.add(sGroup);
         islandsGroup.add(island);
         islandsMap.set(s.id, { mesh: island, starsGroup: sGroup });
-        
         s.starTypes.forEach((type, idx) => {
             const config = ENERGY_TYPES[type];
             const star = new THREE.Mesh(config.geo, new THREE.MeshStandardMaterial({ color: config.color, emissive: config.color, emissiveIntensity: 0.5 }));
@@ -170,25 +172,26 @@ function openModal(id) {
     document.getElementById('student-modal').classList.remove('hidden');
 }
 
-// --- ACCIONES EXPUESTAS ---
+// --- ACCIONES ---
 window.rewardStudent = (id, type) => {
+    if(isReadOnly) return;
     const s = appData.groups[appData.currentGroupName].find(x => x.id === id);
-    if(s) { s.starTypes.push(type); showNotify(`${ENERGY_TYPES[type].name} +1 para ${s.name}`); pushToCloud(); }
+    if(s) { s.starTypes.push(type); showNotify(`${ENERGY_TYPES[type].name} +1`); pushToCloud(); }
 };
 
 window.saveStudentChanges = () => {
+    if(isReadOnly) return;
     const s = appData.groups[appData.currentGroupName].find(x => x.id === currentStudentId);
     if(s) { s.name = document.getElementById('edit-name-input').value; window.setEditMode(false); pushToCloud(); }
 };
 
 window.deleteStudent = () => {
-    if(confirm(`¿Eliminar?`)) {
-        appData.groups[appData.currentGroupName] = appData.groups[appData.currentGroupName].filter(x => x.id !== currentStudentId);
-        window.closeModal(); pushToCloud();
-    }
+    if(isReadOnly) return;
+    if(confirm(`¿Eliminar?`)) { appData.groups[appData.currentGroupName] = appData.groups[appData.currentGroupName].filter(x => x.id !== currentStudentId); window.closeModal(); pushToCloud(); }
 };
 
 window.openAddModal = () => {
+    if(isReadOnly) return;
     const name = prompt("Nombre:");
     if(name) {
         const newS = { id: Date.now(), name: name, starTypes: [] };
@@ -203,6 +206,7 @@ window.toggleRanking = () => {
 };
 
 window.setEditMode = (e) => {
+    if(isReadOnly) return;
     document.getElementById('view-mode').classList.toggle('hidden', e);
     document.getElementById('edit-mode').classList.toggle('hidden', !e);
     if(e) {
@@ -214,7 +218,7 @@ window.setEditMode = (e) => {
 window.closeModal = () => document.getElementById('student-modal').classList.add('hidden');
 
 // --- EVENTOS UI ---
-document.getElementById('group-select').onchange = (e) => { appData.currentGroupName = e.target.value; updateAll(); pushToCloud(); };
+document.getElementById('group-select').onchange = (e) => { appData.currentGroupName = e.target.value; updateAll(); if(!isReadOnly) pushToCloud(); };
 document.getElementById('btn-add-student').onclick = window.openAddModal;
 document.getElementById('btn-rotate').onclick = () => autoRotate = !autoRotate;
 document.getElementById('btn-close-modal').onclick = window.closeModal;
@@ -232,9 +236,7 @@ window.addEventListener('click', (e) => {
     const mouse = new THREE.Vector2((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
     const raycaster = new THREE.Raycaster(); raycaster.setFromCamera(mouse, camera);
     const hits = raycaster.intersectObjects(scene.children, true);
-    for(let h of hits) {
-        let o = h.object; while(o) { if(o.userData.id) { focusStudent(o.userData.id); return; } o = o.parent; }
-    }
+    for(let h of hits) { let o = h.object; while(o) { if(o.userData.id) { focusStudent(o.userData.id); return; } o = o.parent; } }
 });
 
 window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
@@ -252,4 +254,4 @@ function animate() {
     controls.update(); renderer.render(scene, camera);
 }
 
-initSync(); animate();
+checkViewerMode(); initSync(); animate();
