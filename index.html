@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neo-Archipelago Cloud Pro</title>
+    <title>Neo-Archipelago Pro | 2A-3B</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-    <!-- Librerías de motor gráfico -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
@@ -16,14 +15,12 @@
     <div id="loading-screen">
         <div class="loader-content">
             <div class="loader-spinner"></div>
-            <h2 class="holo-text-small">CONECTANDO RED NEURONAL...</h2>
-            <p>Sincronizando Archipiélago con Firestore</p>
+            <h2 class="holo-text-small">SISTEMA 2A-3B ACTIVO</h2>
+            <p>Sincronizando Archipiélago con Firestore...</p>
         </div>
     </div>
 
-    <!-- Contenedor de Notificaciones -->
     <div id="notification-container"></div>
-
     <div class="matrix-bg"></div>
     <div id="canvas-container"></div>
     
@@ -34,12 +31,12 @@
                 <div class="group-selector-container">
                     <label>GRUPO ACTIVO:</label>
                     <select id="group-select">
-                        <option value="GRUPO A">GRUPO A</option>
-                        <option value="GRUPO B">GRUPO B</option>
-                        <option value="GRUPO C">GRUPO C</option>
-                        <option value="GRUPO D">GRUPO D</option>
-                        <option value="GRUPO E">GRUPO E</option>
-                        <option value="GRUPO F">GRUPO F</option>
+                        <option value="2A">GRUPO 2A</option>
+                        <option value="2B">GRUPO 2B</option>
+                        <option value="2C">GRUPO 2C</option>
+                        <option value="2D">GRUPO 2D</option>
+                        <option value="3A">GRUPO 3A</option>
+                        <option value="3B">GRUPO 3B</option>
                     </select>
                 </div>
             </div>
@@ -48,7 +45,7 @@
 
         <aside id="leaderboard" class="visible">
             <div class="side-header">
-                <h2>RANKING <span id="current-group-label">A</span></h2>
+                <h2>RANKING <span id="current-group-label">2A</span></h2>
                 <button id="toggle-rank">◀</button>
             </div>
             <div id="rank-list" class="scroll-box"></div>
@@ -79,7 +76,7 @@
                 </div>
 
                 <div class="modal-actions">
-                    <p>ASIGNAR NÚCLEO DE ENERGÍA:</p>
+                    <p>ASIGNAR ENERGÍA:</p>
                     <div class="energy-buttons">
                         <button class="btn-holo btn-inv" id="reward-inn">💡 INN</button>
                         <button class="btn-holo btn-cre" id="reward-cre">🎨 CRE</button>

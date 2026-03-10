@@ -17,14 +17,14 @@ const db = getFirestore(firebaseApp);
 
 // --- ESTADO GLOBAL ---
 let appData = {
-    currentGroupName: "GRUPO A",
+    currentGroupName: "2A",
     groups: { 
-        "GRUPO A": [], "GRUPO B": [], "GRUPO C": [], 
-        "GRUPO D": [], "GRUPO E": [], "GRUPO F": [] 
+        "2A": [], "2B": [], "2C": [], 
+        "2D": [], "3A": [], "3B": [] 
     }
 };
 let currentStudentId = null;
-let islandsMap = new Map(); // Rastrear mallas 3D para actualizaciones fluidas
+let islandsMap = new Map();
 
 // --- MOTOR 3D ---
 const scene = new THREE.Scene();
@@ -63,6 +63,7 @@ scene.add(core);
 // --- UTILIDADES ---
 function showNotify(msg) {
     const container = document.getElementById('notification-container');
+    if(!container) return;
     const n = document.createElement('div');
     n.className = 'notification';
     n.innerText = `📡 ${msg}`;
@@ -70,13 +71,9 @@ function showNotify(msg) {
     setTimeout(() => { n.style.opacity = '0'; setTimeout(() => n.remove(), 500); }, 3000);
 }
 
-// --- SINCRONIZACIÓN NUBE ---
+// --- SINCRONIZACIÓN ---
 async function pushToCloud() {
-    try {
-        await setDoc(doc(db, "settings", "mainData"), appData);
-    } catch (e) {
-        console.error("Error al guardar:", e);
-    }
+    try { await setDoc(doc(db, "settings", "mainData"), appData); } catch (e) { console.error(e); }
 }
 
 function initSync() {
@@ -99,21 +96,17 @@ function updateAll() {
     islandsGroup.clear();
     islandsMap.clear();
     const students = appData.groups[appData.currentGroupName] || [];
-    document.getElementById('current-group-label').innerText = appData.currentGroupName.split(' ')[1];
+    document.getElementById('current-group-label').innerText = appData.currentGroupName;
     
     students.forEach((s, i) => {
-        const radius = 30; const angle = (Math.PI * 2 / Math.max(students.length, 1)) * i;
-        const r = i % 2 === 0 ? radius : radius + 15;
+        const radius = i % 2 === 0 ? 30 : 45;
+        const angle = (Math.PI * 2 / Math.max(students.length, 1)) * i;
         const level = LEVELS.find(l => s.starTypes.length <= l.max);
         
-        const island = new THREE.Mesh(
-            new THREE.CylinderGeometry(3*level.size, 2, 2*level.size, 6), 
-            new THREE.MeshStandardMaterial({ color: level.color, roughness: 0.5, metalness: 0.8 })
-        );
-        island.position.set(Math.cos(angle)*r, level.size, Math.sin(angle)*r);
+        const island = new THREE.Mesh(new THREE.CylinderGeometry(3*level.size, 2, 2*level.size, 6), new THREE.MeshStandardMaterial({ color: level.color, roughness: 0.5, metalness: 0.8 }));
+        island.position.set(Math.cos(angle)*radius, level.size, Math.sin(angle)*radius);
         island.userData.id = s.id;
         
-        // Etiqueta 3D
         const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
         canvas.width = 512; canvas.height = 128;
         ctx.fillStyle = 'rgba(0, 255, 255, 0.1)'; ctx.fillRect(0,0,512,128);
@@ -121,18 +114,12 @@ function updateAll() {
         ctx.fillStyle = '#fff'; ctx.font = 'bold 60px Orbitron'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(s.name, 256, 64);
         const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true }));
-        sprite.scale.set(5, 1.25, 1); sprite.position.set(0, -2.5, 0); 
-        island.add(sprite);
+        sprite.scale.set(5, 1.25, 1); sprite.position.set(0, -2.5, 0); island.add(sprite);
 
-        // Grupo de estrellas
-        const sGroup = new THREE.Group(); 
-        sGroup.position.set(0, 2.5 + level.size, 0); 
-        island.add(sGroup);
-        
+        const sGroup = new THREE.Group(); sGroup.position.set(0, 2.5 + level.size, 0); island.add(sGroup);
         islandsGroup.add(island);
         islandsMap.set(s.id, { mesh: island, starsGroup: sGroup });
         
-        // Dibujar estrellas existentes
         s.starTypes.forEach((type, idx) => {
             const config = ENERGY_TYPES[type];
             const star = new THREE.Mesh(config.geo, new THREE.MeshStandardMaterial({ color: config.color, emissive: config.color, emissiveIntensity: 0.5 }));
@@ -145,9 +132,7 @@ function updateAll() {
 }
 
 function updateLeaderboard() {
-    const list = document.getElementById('rank-list'); 
-    if(!list) return;
-    list.innerHTML = '';
+    const list = document.getElementById('rank-list'); if(!list) return; list.innerHTML = '';
     const students = appData.groups[appData.currentGroupName] || [];
     [...students].sort((a,b) => b.starTypes.length - a.starTypes.length).forEach((s, i) => {
         const card = document.createElement('div'); card.className = 'student-card';
@@ -159,23 +144,20 @@ function updateLeaderboard() {
 }
 
 function focusStudent(id) {
-    const sRef = islandsMap.get(id);
-    if(!sRef) return;
+    const sRef = islandsMap.get(id); if(!sRef) return;
     gsap.to(camera.position, { x: sRef.mesh.position.x * 1.5, y: 15, z: sRef.mesh.position.z * 1.5, duration: 1.2 });
     controls.target.copy(sRef.mesh.position); autoRotate = false;
     openModal(id);
 }
 
 function openModal(id) {
-    const s = appData.groups[appData.currentGroupName].find(x => x.id === id);
-    if(!s) return;
+    const s = appData.groups[appData.currentGroupName].find(x => x.id === id); if(!s) return;
     currentStudentId = id;
     document.getElementById('modal-name').innerText = s.name;
     document.getElementById('modal-stars').innerText = s.starTypes.length;
     const level = LEVELS.find(l => s.starTypes.length <= l.max);
     document.getElementById('modal-level').innerText = level.name;
     document.getElementById('modal-level').style.color = `#${level.color.toString(16).padStart(6, '0')}`;
-    
     const medals = document.getElementById('modal-medals'); medals.innerHTML = '';
     const counts = s.starTypes.reduce((acc, t) => { acc[t] = (acc[t] || 0) + 1; return acc; }, {});
     Object.keys(counts).forEach(t => {
@@ -188,52 +170,38 @@ function openModal(id) {
     document.getElementById('student-modal').classList.remove('hidden');
 }
 
-// --- ACCIONES ---
+// --- ACCIONES EXPUESTAS ---
 window.rewardStudent = (id, type) => {
     const s = appData.groups[appData.currentGroupName].find(x => x.id === id);
-    if(s) {
-        s.starTypes.push(type); 
-        showNotify(`${ENERGY_TYPES[type].name} +1 para ${s.name}`);
-        pushToCloud();
-    }
+    if(s) { s.starTypes.push(type); showNotify(`${ENERGY_TYPES[type].name} +1 para ${s.name}`); pushToCloud(); }
 };
 
 window.saveStudentChanges = () => {
     const s = appData.groups[appData.currentGroupName].find(x => x.id === currentStudentId);
-    if(s) {
-        s.name = document.getElementById('edit-name-input').value;
-        window.setEditMode(false);
-        showNotify(`Perfil de ${s.name} actualizado`);
-        pushToCloud();
-    }
+    if(s) { s.name = document.getElementById('edit-name-input').value; window.setEditMode(false); pushToCloud(); }
 };
 
 window.deleteStudent = () => {
-    const s = appData.groups[appData.currentGroupName].find(x => x.id === currentStudentId);
-    if(confirm(`¿Eliminar a ${s.name}?`)) {
+    if(confirm(`¿Eliminar?`)) {
         appData.groups[appData.currentGroupName] = appData.groups[appData.currentGroupName].filter(x => x.id !== currentStudentId);
-        window.closeModal();
-        showNotify(`Cadete eliminado`);
-        pushToCloud();
+        window.closeModal(); pushToCloud();
     }
 };
 
 window.openAddModal = () => {
-    const name = prompt("Nombre del alumno:");
+    const name = prompt("Nombre:");
     if(name) {
         const newS = { id: Date.now(), name: name, starTypes: [] };
         if(!appData.groups[appData.currentGroupName]) appData.groups[appData.currentGroupName] = [];
-        appData.groups[appData.currentGroupName].push(newS); 
-        showNotify(`Nuevo cadete: ${name}`);
-        pushToCloud();
+        appData.groups[appData.currentGroupName].push(newS); pushToCloud();
     }
 };
 
-// --- EVENTOS INTERFAZ ---
 window.toggleRanking = () => {
     const lb = document.getElementById('leaderboard'); lb.classList.toggle('hidden-rank');
     document.getElementById('toggle-rank').innerText = lb.classList.contains('hidden-rank') ? '▶' : '◀';
 };
+
 window.setEditMode = (e) => {
     document.getElementById('view-mode').classList.toggle('hidden', e);
     document.getElementById('edit-mode').classList.toggle('hidden', !e);
@@ -242,12 +210,11 @@ window.setEditMode = (e) => {
         document.getElementById('edit-name-input').value = s ? s.name : "";
     }
 };
+
 window.closeModal = () => document.getElementById('student-modal').classList.add('hidden');
 
-document.getElementById('group-select').onchange = (e) => { 
-    appData.currentGroupName = e.target.value; 
-    updateAll(); 
-};
+// --- EVENTOS UI ---
+document.getElementById('group-select').onchange = (e) => { appData.currentGroupName = e.target.value; updateAll(); pushToCloud(); };
 document.getElementById('btn-add-student').onclick = window.openAddModal;
 document.getElementById('btn-rotate').onclick = () => autoRotate = !autoRotate;
 document.getElementById('btn-close-modal').onclick = window.closeModal;
@@ -260,7 +227,6 @@ document.getElementById('reward-inn').onclick = () => window.rewardStudent(curre
 document.getElementById('reward-cre').onclick = () => window.rewardStudent(currentStudentId, 'creativity');
 document.getElementById('reward-col').onclick = () => window.rewardStudent(currentStudentId, 'collaboration');
 
-// --- EVENTOS 3D ---
 window.addEventListener('click', (e) => {
     if(e.target.closest('#ui-layer')) return;
     const mouse = new THREE.Vector2((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
@@ -271,9 +237,7 @@ window.addEventListener('click', (e) => {
     }
 });
 
-window.addEventListener('resize', () => { 
-    camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); 
-});
+window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
 
 function animate() {
     requestAnimationFrame(animate); core.rotation.y += 0.01;
